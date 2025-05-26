@@ -225,7 +225,7 @@ void Gantt_chart_display(Running_Log *log, char *name, int n)
     int *end_times = malloc(sizeof(int) * n); // 종료시간 저장
     int width = 0;  //간격
 
-    printf("\nGantt Chart - %s", name);
+    printf("\n\033[1;33mGantt Chart - %s\033[0m\n", name);
 
     int i = 0;
     while (i < n) {
@@ -359,6 +359,18 @@ void Schedule_FCFS(Process* p, Process* original, int n) {
             }
         }
 
+        //  ReadyQueue -> Running
+        if (running == NULL && !is_empty(&ready)) //현재실행중인 프로세스 없고, ready 큐가 비어있지않을떄
+          {
+            if (idle_start != -1) //idle 로그 기록 (-1이 아니면 이전이 idle)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time };  //idle은 pid=0으로 처리
+                idle_start = -1;  //idle이 끝났으므로 초기화
+            }
+
+            running = pop_front(&ready); //빼서 Runing으로 돌림
+            running->state = RUNNING; 
+        }
         
         if (running != NULL) //현재 프로세스가 running일때
         {
@@ -389,20 +401,7 @@ void Schedule_FCFS(Process* p, Process* original, int n) {
             }
         }
 
-        //  ReadyQueue -> Running
-        if (running == NULL && !is_empty(&ready)) //현재실행중인 프로세스 없고, ready 큐가 비어있지않을떄
-          {
-            if (idle_start != -1) //idle 로그 기록 (-1이 아니면 이전이 idle)
-            {
-                log[log_index++] = (Running_Log){ 0, idle_start, current_time };  //idle은 pid=0으로 처리
-                idle_start = -1;  //idle이 끝났으므로 초기화
-            }
-
-            running = pop_front(&ready); //빼서 Runing으로 돌림
-            running->state = RUNNING; 
-        }
-
-        // 5. IDLE 감지
+        //  IDLE 감지
         if (running == NULL && is_empty(&ready)) //runinning도 없고 프로세스도 없을떄
         {
             if (idle_start == -1) 
@@ -474,6 +473,17 @@ void Schedule_SJF(Process* p, Process* original, int n) {
                 insert(&ready, idx, io_proc);
             }
         }
+        if (running == NULL && !is_empty(&ready)) // ReadyQueue -> Running
+        {
+            if (idle_start != -1)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; // idle 로그 기록
+                idle_start = -1;
+            }
+
+            running = pop_front(&ready);
+            running->state = RUNNING;
+        }
 
         if (running != NULL) // 현재 실행 중인 프로세스 처리
         {
@@ -504,18 +514,6 @@ void Schedule_SJF(Process* p, Process* original, int n) {
             }
         }
 
-        if (running == NULL && !is_empty(&ready)) // ReadyQueue -> Running
-        {
-            if (idle_start != -1)
-            {
-                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; // idle 로그 기록
-                idle_start = -1;
-            }
-
-            running = pop_front(&ready);
-            running->state = RUNNING;
-        }
-
         if (running == NULL && is_empty(&ready)) // IDLE 감지
         {
             if (idle_start == -1)
@@ -526,7 +524,7 @@ void Schedule_SJF(Process* p, Process* original, int n) {
 
         current_time++; // 1 tick 증가
     }
-
+    printf("\n\n %d\n\n", log[0].start_time);
     Gantt_chart_display(log, "SJF", log_index);
     Evaluate(original, n, log, log_index, "SJF");
 }
