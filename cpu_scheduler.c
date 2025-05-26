@@ -45,6 +45,7 @@ Process* pop_front(Queue* q);
 Process* peek_front(Queue* q); //첫번째 node 프로세스 확인하기
 Node* get_node(Queue* q, int index);
 int insert(Queue* q, int index, Process* p);
+void append(Queue* q, Process* p);
 
 void copy(Process *src, Process *dest, int n); //프로세스 리스트 복사
 void Gantt_chart_display(Running_Log *log, char *name, int n); //간트차트 출력 
@@ -58,15 +59,16 @@ void Schedule_Priority(Process *p, Process *original, int n);
 int main(void)
 {
     Process original_process[MAX_PROCESS_NUM]={0}; //초기화
-    Process copied_process[MAX_PROCESS_NUM]={0}; 
+    Process copied_process[MAX_PROCESS_NUM]={0};
+    int n=10;
 
-    Create_process(original_process, 10); // 프로세스 생성
-    copy(original_process, copied_process, 10);
-    Schedule_FCFS(copied_process,original_process,10); 
-    copy(original_process, copied_process, 10);
+    Create_process(original_process, n); // 프로세스 생성
+    copy(original_process, copied_process, n);
+    Schedule_FCFS(copied_process,original_process,n); 
+    /*copy(original_process, copied_process, 10);
     Schedule_SJF(copied_process,original_process,10);
     copy(original_process,copied_process,10);
-    Schedule_Priority(copied_process,original_process,10);
+    Schedule_Priority(copied_process,original_process,10);*/
     return 0;
 
 }
@@ -92,13 +94,13 @@ Process* peek_front(Queue* q) {  //첫번째 node의 프로세스 확인하기
     return q->head->process;
 }
 Node* get_node(Queue* q, int index) {
-    Node* current = q->head; //현재 노드
+    Node* prevNode = q->head; //현재 노드
     int i = 0;
-    while (current != NULL && i < index) { //노드가 null이거나 index값까지 도달할떄까지 루프(current가 null일경우는 마지막일 경우이다)
-        current = current->next;
+    while (prevNode != NULL && i < index) { //노드가 null이거나 index값까지 도달할떄까지 루프(current가 null일경우는 마지막일 경우이다)
+        prevNode = prevNode->next;
         i++;
     }
-    return current;  // index 위치의 노드 or NULL
+    return prevNode;  // index 위치의 노드 or NULL
 }
 int insert(Queue* q, int index, Process* p) {
     if (index < 0) return 0;
@@ -123,6 +125,23 @@ int insert(Queue* q, int index, Process* p) {
     new_node->next = prev->next; //이전노드의 next를 새노드의 next에넣음
     prev->next = new_node; //이전노드의 next가 새노드를 가리키면 삽입완료
     return 1;
+}
+void append(Queue* q, Process* p) {  //맨뒤에 삽입
+    Node* new_node = malloc(sizeof(Node));
+    new_node->process = p;
+    new_node->next = NULL;
+
+    if (q->head == NULL) {
+        q->head = new_node;
+        return;
+    }
+
+    Node* prevNode = q->head;
+    while (prevNode->next != NULL) { //마지막 노드 탐색(prevNode의 next가 NULL인것이 마지막 노드이다)
+        prevNode = prevNode->next;
+    }
+
+    prevNode->next = new_node;
 }
 
 void copy(Process* src, Process* dest, int n) {
@@ -201,42 +220,49 @@ void Create_process(Process *p, int n)
 
 void Gantt_chart_display(Running_Log *log, char *name, int n)
 {
-    int *time_lable = malloc(sizeof(int)*n); //간트차트 레이블
-    int *interval = malloc(sizeof(int)*n); //레이블 간격
-    int index = 0; // time_lable용 인덱스
-    int width = 0; // time_lable 간격 (intervaul에 들어감)
-    
-    printf("\nGantt Chart - %s\n", name);
-    printf("|");
+    const int MAX_LINE_WIDTH = 140;            // 줄바꿈 임계치 
+    int *interval = malloc(sizeof(int) * n);  // 각 블록 너비 저장
+    int *end_times = malloc(sizeof(int) * n); // 종료시간 저장
+    int width = 0;  //간격
 
-    for(int i=0; i<n; i++) //간트차트 출력부
-    {
-        int burst_time = log[i].end_time - log[i].start_time; // log에 기록된 실행시간
+    printf("\nGantt Chart - %s", name);
 
-        if(log[i].pid == 0) // idle check 및 표시(idle 프로세스는 0으로 표시)
-        {
-            width = printf(" IDLE(%d) |", burst_time); // printf 리턴값 저장(간격)
+    int i = 0;
+    while (i < n) {
+        int line_width = 0;  //누적 간격
+        int line_start = i;  //타임 레이블 시작점
+
+        printf("\n");
+        //  블록 한 줄 출력
+        printf("|");
+        while (i < n) {
+            int burst = log[i].end_time - log[i].start_time; //burst 계산
+            if (log[i].pid == 0)
+                width = printf(" IDLE(%d) |", burst);
+            else
+                width = printf(" P%d(%d) |", log[i].pid, burst);
+
+            interval[i] = width;
+            end_times[i] = log[i].end_time;
+            line_width += width;
+
+            i++;
+            if (line_width >= MAX_LINE_WIDTH)  break; // 줄 너비 초과 시 개행
         }
-        else
-        {
-            width = printf(" P%d(%d) |",log[i].pid, burst_time); // 위와 동일
-        }
+        printf("\n");
 
-        time_lable[index] = log[i].end_time; //label 값 저장
-        interval[index] = width; // 간격 저장
-        index++;
+        // 시간 라벨 출력
+        printf("%*d", 1, log[line_start].start_time); // 첫 시작점
+        for (int j = line_start; j < i; j++) {
+            printf("%*d", interval[j], end_times[j]);
+        }
+        printf("\n");
     }
 
-    printf("\n0"); //개행 및 time_lable 시작값
-
-    for(int i=0; i<index; i++) //레이블 출력부
-    {
-        printf("%*d",interval[i],time_lable[i]);
-    }
-    printf("\n");
-    free(time_lable);
     free(interval);
+    free(end_times);
 }
+
 
 void Evaluate(Process *p, int n, Running_Log *log, int index, char *name)
 {
@@ -295,47 +321,103 @@ void Evaluate(Process *p, int n, Running_Log *log, int index, char *name)
 }
 
 
-void Schedule_FCFS(Process *p,Process *original, int n)
-{
-    Running_Log log[2 * MAX_PROCESS_NUM]; //실행 기록 로그 배열
+void Schedule_FCFS(Process* p, Process* original, int n) {
+    Queue ready, waiting; //ready 큐와 waiting 큐 생성및 초기화
+    init_queue(&ready);
+    init_queue(&waiting);
+
+    Running_Log log[2 * MAX_PROCESS_NUM]; //간트차트와 평가용 log
     int log_index = 0;
     int current_time = 0;
+    int terminated_count = 0; //종료된 프로세스 개수
+    Process* running = NULL; //현재 실행중인 프로세스
+    int start_time = -1;  
+    int idle_start = -1;
 
-    for(int i=0; i<n-1; i++) //버블정렬 
+    while (terminated_count < n)  //모든 프로세스가 끝날떄까지
     {
-        for(int j=0; j<n-i-1; j++)
-        {
-            if(p[j].arrival_time>p[j+1].arrival_time)
+        for (int i = 0; i < n; i++) // ready 큐에 삽입
+        { 
+            if (p[i].arrival_time == current_time) //도착한 프로세스 삽입
             {
-                Process temp = p[j];
-                p[j] = p[j+1];
-                p[j+1] = temp;
+                p[i].state = READY;
+                append(&ready, &p[i]);
             }
         }
-    }
 
-    for (int i = 0; i < n; i++) {   //process log 기록
-        if (current_time < p[i].arrival_time) //IDLE 기록
-        {  
-            log[log_index].pid = 0;  //IDLE 프로세스는 pid = 0 으로 정의
-            log[log_index].start_time = current_time; //시작시간은 현재시간
-            log[log_index].end_time = p[i].arrival_time; //종료시간(다음 프로세스가 도착할떄까지)
-            log_index++;
+        if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
+        {
+            Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 요소 들고옴
+            io_proc->io_remaining_time--; // i/o burst 감소
 
-            current_time = p[i].arrival_time; //현재시간 업데이트
+            if (io_proc->io_remaining_time == 0)  // i/o burst 가 끝나면 큐에서 뺴고 다시 ready 큐에 넣음
+            {
+                pop_front(&waiting);
+                io_proc->current_io_index++; //다음 i/o가 되도록index 증가
+                io_proc->state = READY;
+                append(&ready, io_proc);
+            }
         }
-        //여기서부턴 프로세스 기록
-        log[log_index].pid = p[i].pid; 
-        log[log_index].start_time = current_time;
-        log[log_index].end_time = current_time + p[i].cpu_burst_time; //종료시간= 현시간burst time
-        log_index++;
 
-        current_time += p[i].cpu_burst_time; //현재 시간 업데이트
+        
+        if (running != NULL) //현재 프로세스가 running일때
+        {
+            if (start_time == -1) start_time = current_time;  //시작시간 기록
+
+            running->remaining_time--; // 실행 시간만큼 남은시간 감소
+
+            // I/O 요청 도달
+            if (running->current_io_index < running->io_count &&         //실행할 i/o인덱스가 전체 i/o보다 작아야함
+                running->cpu_burst_time - running->remaining_time ==     //cpu_burst - 남은시간 = 실행한 시간이 나오, 이게 i/o request 시간이 같을시 i/o 시작
+                running->io_request_times[running->current_io_index]) 
+            {
+                running->io_remaining_time = running->io_burst_times[running->current_io_index]; // i/o burst 시간을 i/o remain에 넣어 컨트롤
+                running->state = WAITING;
+                insert(&waiting, 0, running);  //프로세스 waiting 큐에 삽입
+              
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; //로그기록
+                running = NULL;  //running 비움
+                start_time = -1;  //다음 번 프로세스를 위해 초기화 시켜놓ㅇㅁ
+            }
+            else if (running->remaining_time == 0)  //프로세스가 종료되었을때
+            {
+                running->state = TERMINATED;
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time + 1 };
+                running = NULL;
+                start_time = -1;
+                terminated_count++;
+            }
+        }
+
+        //  ReadyQueue -> Running
+        if (running == NULL && !is_empty(&ready)) //현재실행중인 프로세스 없고, ready 큐가 비어있지않을떄
+          {
+            if (idle_start != -1) //idle 로그 기록 (-1이 아니면 이전이 idle)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time };  //idle은 pid=0으로 처리
+                idle_start = -1;  //idle이 끝났으므로 초기화
+            }
+
+            running = pop_front(&ready); //빼서 Runing으로 돌림
+            running->state = RUNNING; 
+        }
+
+        // 5. IDLE 감지
+        if (running == NULL && is_empty(&ready)) //runinning도 없고 프로세스도 없을떄
+        {
+            if (idle_start == -1) 
+            {
+                idle_start = current_time; //idle 시작 시간 기록
+            }
+        }
+
+        current_time++; //1 tick만큼 증가
     }
 
-    Gantt_chart_display(log,"FCFS",log_index);
+    Gantt_chart_display(log, "FCFS", log_index);
     Evaluate(original, n, log, log_index, "FCFS");
 }
+
 
 void Schedule_SJF(Process *p, Process *original, int n)
 {
