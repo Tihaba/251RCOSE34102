@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
 #define MAX_PROCESS_NUM 100 // 최대 프로세스 개수
 
 typedef enum { NEW, READY, RUNNING, WAITING, TERMINATED } ProcessState;
@@ -39,13 +38,13 @@ typedef struct{ //readuqueue 헤드
     Node * head;
 }Queue;
 
+//여긴 readyqueue 링크드리스트 동작함수
 void init_queue(Queue* q); //ready queue 초기화
 int is_empty(Queue* q);
 Process* pop_front(Queue* q);
 Process* peek_front(Queue* q); //첫번째 node 프로세스 확인하기
 Node* get_node(Queue* q, int index);
 int insert(Queue* q, int index, Process* p);
-
 
 void copy(Process *src, Process *dest, int n); //프로세스 리스트 복사
 void Gantt_chart_display(Running_Log *log, char *name, int n); //간트차트 출력 
@@ -126,26 +125,29 @@ int insert(Queue* q, int index, Process* p) {
     return 1;
 }
 
+void copy(Process* src, Process* dest, int n) {
+    for (int i = 0; i < n; i++) {
+        dest[i] = src[i];  // 얕은 복사
 
-
-
-void copy(Process *src, Process *dest, int n)
-{
-    for(int i=0; i<n; i++){
-        dest[i]=src[i];
+        // 동적 배열을 위한 깊은 복사
+        dest[i].io_request_times = malloc(sizeof(int) * src[i].io_count);
+        dest[i].io_burst_times = malloc(sizeof(int) * src[i].io_count);
+        
+        for (int j = 0; j < src[i].io_count; j++) {
+            dest[i].io_request_times[j] = src[i].io_request_times[j];
+            dest[i].io_burst_times[j] = src[i].io_burst_times[j];
+        }
     }
 }
 
 void Create_process(Process *p, int n)
 {   
-    int * priority_pool = malloc(sizeof(int)*n); //중복없는 우선순위를 위한 배열 동적할당
-
     srand(time(NULL)); //시드값 지정
 
-    for(int i=0; i<n; i++) //순서대로 우선순위 풀을 초기화(0,1,2...n-1)
-    {
-        priority_pool[i]= i;
-    }
+    int * priority_pool = malloc(sizeof(int)*n); //중복없는 우선순위를 위한 배열 동적할당
+
+    for(int i=0; i<n; i++) priority_pool[i]= i; //순서대로 우선순위 풀을 초기화(0,1,2...n-1)
+        
     for(int i = n-1; i>0; i--) // 카드섞기(shuffele)방식 - 이렇게 하면 중복없이 우선순위 지정가능(참조)
     {
         int j=rand()%(i+1);
@@ -160,6 +162,36 @@ void Create_process(Process *p, int n)
         p[i].cpu_burst_time = rand()%13 +3; //(3~15)
         p[i].arrival_time = rand()%16; // (0~15)
         p[i].priority = priority_pool[i]+1; //(1~n)
+        p[i].remaining_time = p[i].cpu_burst_time;
+        p[i].state = NEW;
+
+        if(p[i].cpu_burst_time == 3)   
+            p[i].io_count =2; //bursttime 이 3이면 최대 2번까지 i/o가 들어갈수있다.
+            //p[i].io_count = rand()%2 + 1; //무조건 2번이상(멀티번) 일어나야하면 감점대상(1~2)
+        else 
+            p[i].io_count = rand()%2 + 2; //그외는 (2~3) i/o
+
+        p[i].io_request_times = malloc(sizeof(int) * p[i].io_count);
+        p[i].io_burst_times = malloc(sizeof(int) * p[i].io_count);
+
+        int *IO_used = calloc(p[i].cpu_burst_time, sizeof(int)); ///io 발생시점을 체크할 임시변수 1로 발생확인(calloc 연속된 메모리공간을 0으로 초기화해서 반환)
+
+        for (int j = 0; j < p[i].io_count; ) //i/o 발생 시점 정하기
+        { 
+            int t = rand() % (p[i].cpu_burst_time - 1) + 1; // (1 ~ burst-1)
+
+            if (!IO_used[t]) //i/o 시점 중복 체크(0이면 io가 없다는 뜻이므로 진입)
+            { 
+                IO_used[t] = 1; //i/o 플래그 셋
+                p[i].io_request_times[j] = t;
+                p[i].io_burst_times[j] = rand() % 4 + 2; // (2~5)
+                j++;
+            }
+        }
+        free(IO_used);
+
+        p[i].io_remaining_time = 0;
+        p[i].current_io_index = 0;
     }
 
     p[rand()%n].arrival_time=0; //첫번째  idle 방지
