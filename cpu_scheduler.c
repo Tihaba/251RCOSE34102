@@ -65,9 +65,9 @@ int main(void)
     Create_process(original_process, n); // 프로세스 생성
     copy(original_process, copied_process, n);
     Schedule_FCFS(copied_process,original_process,n); 
-    /*copy(original_process, copied_process, 10);
+    copy(original_process, copied_process, 10);
     Schedule_SJF(copied_process,original_process,10);
-    copy(original_process,copied_process,10);
+    /*copy(original_process,copied_process,10);
     Schedule_Priority(copied_process,original_process,10);*/
     return 0;
 
@@ -331,8 +331,8 @@ void Schedule_FCFS(Process* p, Process* original, int n) {
     int current_time = 0;
     int terminated_count = 0; //종료된 프로세스 개수
     Process* running = NULL; //현재 실행중인 프로세스
-    int start_time = -1;  
-    int idle_start = -1;
+    int start_time = -1;  //log 기록용
+    int idle_start = -1;  //log 기록용
 
     while (terminated_count < n)  //모든 프로세스가 끝날떄까지
     {
@@ -344,13 +344,13 @@ void Schedule_FCFS(Process* p, Process* original, int n) {
                 append(&ready, &p[i]);
             }
         }
-
+        //IO 처리
         if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
         {
-            Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 요소 들고옴
+            Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 가져옴
             io_proc->io_remaining_time--; // i/o burst 감소
 
-            if (io_proc->io_remaining_time == 0)  // i/o burst 가 끝나면 큐에서 뺴고 다시 ready 큐에 넣음
+            if (io_proc->io_remaining_time == 0)  // i/o 가끝났을떄
             {
                 pop_front(&waiting);
                 io_proc->current_io_index++; //다음 i/o가 되도록index 증가
@@ -366,20 +366,20 @@ void Schedule_FCFS(Process* p, Process* original, int n) {
 
             running->remaining_time--; // 실행 시간만큼 남은시간 감소
 
-            // I/O 요청 도달
+            // I/O 요청 도달(running -> waiting)
             if (running->current_io_index < running->io_count &&         //실행할 i/o인덱스가 전체 i/o보다 작아야함
                 running->cpu_burst_time - running->remaining_time ==     //cpu_burst - 남은시간 = 실행한 시간이 나오, 이게 i/o request 시간이 같을시 i/o 시작
                 running->io_request_times[running->current_io_index]) 
             {
-                running->io_remaining_time = running->io_burst_times[running->current_io_index]; // i/o burst 시간을 i/o remain에 넣어 컨트롤
+                running->io_remaining_time = running->io_burst_times[running->current_io_index]; // io remain set 하고  컨트롤
                 running->state = WAITING;
-                insert(&waiting, 0, running);  //프로세스 waiting 큐에 삽입
+                append(&waiting, running); //프로세스 waiting 큐에 삽입
               
                 log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; //로그기록
                 running = NULL;  //running 비움
                 start_time = -1;  //다음 번 프로세스를 위해 초기화 시켜놓ㅇㅁ
             }
-            else if (running->remaining_time == 0)  //프로세스가 종료되었을때
+            else if (running->remaining_time == 0)  //프로세스가 종료되었을때 (running->terminated)
             {
                 running->state = TERMINATED;
                 log[log_index++] = (Running_Log){ running->pid, start_time, current_time + 1 };
@@ -419,67 +419,118 @@ void Schedule_FCFS(Process* p, Process* original, int n) {
 }
 
 
-void Schedule_SJF(Process *p, Process *original, int n)
-{
-    Running_Log log[2 * MAX_PROCESS_NUM];  // 실행 기록 로그 배열
-    int log_index = 0;                     // 로그 인덱스 
-    int current_time = 0;                  // 현재 시각
-    int complete_Pnum = 0;                     // 완료된 프로세스 개수
-    int *is_completed = malloc(sizeof(int)*n);  // 각 프로세스 완료 여부 (0: 미완료, 1: 완료)
-    int idle_start = -1; // IDLE 시작시간
-    for(int i=0; i<n; i++) is_completed[i]=0; //모두 미완료로 초기화
-    
+void Schedule_SJF(Process* p, Process* original, int n) {
+    Queue ready, waiting; // ready 큐와 waiting 큐 생성 및 초기화
+    init_queue(&ready);
+    init_queue(&waiting);
 
-    while (complete_Pnum < n) {  // 모든 프로세스가 완료될 때까지
-        int idx = -1;        // 현재 시점에 실행할 프로세스 인덱스
-        int min_burst = 1e9; // 최소 burst time(초기값은 int_max--최댓값)
+    Running_Log log[2 * MAX_PROCESS_NUM]; // 간트차트와 평가용 log
+    int log_index = 0;
+    int current_time = 0;
+    int terminated_count = 0; // 종료된 프로세스 개수
+    Process* running = NULL; // 현재 실행중인 프로세스
+    int start_time = -1;  //log 기록용
+    int idle_start = -1;  //log 기록용
 
-     
-        for (int i = 0; i < n; i++) { // 프로세스중 burst time 최소인거 찾기
-            if (original[i].arrival_time <= current_time && !is_completed[i]) { //도착여부 확인하고, 완료안된 프로세스인지 체크
-                if (original[i].cpu_burst_time < min_burst) { //최소 bursttime찾기
-                    min_burst = original[i].cpu_burst_time;
-                    idx = i; // 조건을 만족한 최소 bursttime의 index값
+    while (terminated_count < n) // 모든 프로세스가 끝날 때까지
+    {
+        for (int i = 0; i < n; i++) // 도착한 프로세스 ready 큐에 삽입
+        {
+            if (p[i].arrival_time == current_time)
+            {
+                p[i].state = READY;
+                // remaining_time 기준 정렬 삽입
+                int idx = 0;
+                Node* cur = ready.head; //첫번쨰 노드
+                while (cur) //남은 실행시간기준으로 탐색
+                {
+                    if (p[i].remaining_time < cur->process->remaining_time) break; //cur Node보다 짧으면 break하고 cur node 앞에 삽입
+                    idx++;
+                    cur = cur->next;  //다음 노드로 이동
                 }
+                insert(&ready, idx, &p[i]);
             }
         }
- 
-        if (idx == -1) //IDLE일 경우
-        { 
-            if(idle_start == -1)
+        //IO처리
+        if (!is_empty(&waiting)) // waiting 큐 처리
+        {
+            Process* io_proc = peek_front(&waiting); //waiting 큐의 첫번쨰 가져옴
+            io_proc->io_remaining_time--;
+
+            if (io_proc->io_remaining_time == 0)  //io가 끝났을떄
+            {
+                pop_front(&waiting);
+                io_proc->current_io_index++;  //다음 io로 index증가
+                io_proc->state = READY;
+
+                int idx = 0;
+                Node* cur = ready.head; //첫번쨰 노드
+                while (cur)//노드 탐색
+                {
+                    if (io_proc->remaining_time < cur->process->remaining_time) break; //curNode보다 짧을떄 break, curnode앞에 삽입
+                    idx++;
+                    cur = cur->next; //다음노드
+                }
+                insert(&ready, idx, io_proc);
+            }
+        }
+
+        if (running != NULL) // 현재 실행 중인 프로세스 처리
+        {
+            if (start_time == -1) start_time = current_time;
+
+            running->remaining_time--;
+
+            // IO 요청 도달
+            if (running->current_io_index < running->io_count &&       //유효한 io 인덱스인지
+                running->cpu_burst_time - running->remaining_time ==   //io_request_time탐지 (총 burst-remain=실행한시간)
+                running->io_request_times[running->current_io_index])
+            {
+                running->io_remaining_time = running->io_burst_times[running->current_io_index];//i/o remain time set 해서 컨트롤
+                running->state = WAITING;
+                append(&waiting, running); //waiting에 삽입
+
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; //기록
+                running = NULL; //runniㅜg 초기화
+                start_time = -1;
+            }
+            else if (running->remaining_time == 0) // 프로세스 종료 시
+            {
+                running->state = TERMINATED;
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time + 1 }; //기록
+                running = NULL;
+                start_time = -1;
+                terminated_count++;
+            }
+        }
+
+        if (running == NULL && !is_empty(&ready)) // ReadyQueue -> Running
+        {
+            if (idle_start != -1)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; // idle 로그 기록
+                idle_start = -1;
+            }
+
+            running = pop_front(&ready);
+            running->state = RUNNING;
+        }
+
+        if (running == NULL && is_empty(&ready)) // IDLE 감지
+        {
+            if (idle_start == -1)
             {
                 idle_start = current_time;
             }
-            current_time++; 
         }
-        else
-        {
-            if (idle_start != -1) //idle 기록(-1이 아니라는건 앞쪽이 idle)
-            {
-                log[log_index].pid = 0; //idle 기록(idle은 pid== 0정의)
-                log[log_index].start_time = idle_start;
-                log[log_index].end_time = current_time;
-                log_index++;
-                idle_start = -1;  //초기화(idle 끝남)
-             }
-             //프로세스 기록
-            log[log_index].pid = original[idx].pid;
-            log[log_index].start_time = current_time;
-            log[log_index].end_time = current_time + original[idx].cpu_burst_time;
 
-            current_time += original[idx].cpu_burst_time;   // 현재 시간 갱신
-            is_completed[idx] = 1;                   // 해당 프로세스 완료 표시
-            p[complete_Pnum]=original[idx]; //프로세스 ready queue 정렬
-            complete_Pnum++;                     // 완료 개수 증가
-            log_index++; 
-        }
+        current_time++; // 1 tick 증가
     }
 
-    
     Gantt_chart_display(log, "SJF", log_index);
     Evaluate(original, n, log, log_index, "SJF");
-    free(is_completed);
 }
+
 
 void Schedule_Priority(Process *p, Process *original, int n)
 {
