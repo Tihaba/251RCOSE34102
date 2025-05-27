@@ -461,7 +461,7 @@ void Report_Evaluation() {
     printf("Best Avg Waiting Time    : %s (%.2f)\n", results[best_wait].name, results[best_wait].avg_waiting);
     printf("Best Avg Turnaround Time : %s (%.2f)\n", results[best_turn].name, results[best_turn].avg_turnaround);
     printf("Best CPU Utilization     : %s (%.2f%%)\n", results[best_util].name, results[best_util].utilization);
-    printf("=======================================================\n");
+    printf("=======================================================\n\n");
 }
 
 
