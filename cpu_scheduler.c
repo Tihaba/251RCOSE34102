@@ -58,6 +58,7 @@ void Print_process_info(Process *p, int n);
 void Scheduling(Process *original, int select, int n);
 void Schedule_RR(Process *p, Process *original, int n);
 void Schedule_Preemptive_SJF(Process* p, Process* original, int n);
+void Schedule_Preemptive_Priority(Process* p, Process* original, int n);
 
 
 int main(void)
@@ -212,10 +213,16 @@ void Scheduling(Process *original, int select, int n)
             copy(original, copied_process, n);
             Schedule_RR(copied_process,original,n);
             break;
+        case 5:
+            Print_process_info(original,n);
+            copy(original, copied_process, n);
+            Schedule_Preemptive_Priority(copied_process,original,n);
+            break;
         case 6:
             Print_process_info(original,n);
             copy(original, copied_process, n);
             Schedule_Preemptive_SJF(copied_process,original,n);
+            break;
     }
     printf("Press Any Key....");
     getchar();
@@ -481,7 +488,7 @@ void Schedule_FCFS(Process* p, Process* original, int n)
         if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
         {
             Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 가져옴
-            
+            if(io_proc->io_remaining_time > 0) io_proc->io_remaining_time--; // i/o burst 감소
 
             // WAITING -> READY: I/O 완료 시 ready로 이동
             if (io_proc->io_remaining_time == 0)  // i/o 가끝났을떄
@@ -491,7 +498,6 @@ void Schedule_FCFS(Process* p, Process* original, int n)
                 io_proc->state = READY;
                 append(&ready, io_proc);
             }
-                  if(io_proc->io_remaining_time > 0) io_proc->io_remaining_time--; // i/o burst 감소
         }
 
         if (running != NULL) //현재 프로세스가 running일때
@@ -591,6 +597,7 @@ void Schedule_SJF(Process* p, Process* original, int n)
         if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
         {
             Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 가져옴
+            if(io_proc->io_remaining_time > 0) io_proc->io_remaining_time--; // i/o burst 감소
 
             //WAITING -> READY
             if (io_proc->io_remaining_time == 0)  // i/o 가끝났을떄
@@ -609,7 +616,6 @@ void Schedule_SJF(Process* p, Process* original, int n)
                 }
                 insert(&ready, idx, io_proc);
             }
-            if(io_proc->io_remaining_time > 0) io_proc->io_remaining_time--; // i/o burst 감소
         }
 
         if (running != NULL) //현재 프로세스가 running일때
@@ -710,6 +716,7 @@ void Schedule_Priority(Process* p, Process* original, int n)
         if (!is_empty(&waiting)) // waiting 큐 처리
         {
             Process* io_proc = peek_front(&waiting); //waiting 큐의 첫번쨰 가져옴
+             if(io_proc->io_remaining_time > 0) io_proc->io_remaining_time--;
 
             //WAITING -> READY
             if (io_proc->io_remaining_time == 0)  //io가 끝났을떄
@@ -729,7 +736,6 @@ void Schedule_Priority(Process* p, Process* original, int n)
                 insert(&ready, idx, io_proc);
             }
 
-            if(io_proc->io_remaining_time > 0) io_proc->io_remaining_time--;
         }
 
         if (running != NULL) //현재 프로세스가 running일때
@@ -825,7 +831,7 @@ void Schedule_RR(Process* p, Process* original, int n)
         if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
         {
             Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 가져옴
-
+            if(io_proc->io_remaining_time>0) io_proc->io_remaining_time--; // I/O 감소
             //WAITING -> READY
             if (io_proc->io_remaining_time == 0)  // i/o 가끝났을떄
             {
@@ -835,7 +841,7 @@ void Schedule_RR(Process* p, Process* original, int n)
                 append(&ready, io_proc);
             }
 
-            if(io_proc->io_remaining_time>0) io_proc->io_remaining_time--; // I/O 감소
+            
         }
 
         if (running != NULL) //현재 프로세스가 running일때
@@ -915,7 +921,9 @@ void Schedule_RR(Process* p, Process* original, int n)
     Evaluate(original, n, log, log_index, "RR");
 }
 
-void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
+
+void Schedule_Preemptive_SJF(Process* p, Process* original, int n)
+{
     Queue ready, waiting; // ready 큐와 waiting 큐 생성 및 초기화
     init_queue(&ready);
     init_queue(&waiting);
@@ -928,9 +936,9 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
     int start_time = -1;  // log 기록용 (시작시간)
     int idle_start = -1;  // log 기록용 (idle 시작시간)
 
-    while (terminated_count < n) //모든 프로세스가 끝날때까지
+    while (terminated_count < n) //모든 프로세스가 끝날 때까지
     {
-        //  NEW  ->  READY
+        // NEW -> READY
         for (int i = 0; i < n; i++) // 현재 시간에 도착한 프로세스 ready 큐에 삽입
         {
             if (p[i].arrival_time == current_time)
@@ -940,7 +948,7 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
                 // remaining_time 기준 정렬 삽입
                 int idx = 0;
                 Node* cur = ready.head;
-                while (cur) // 탐색
+                while (cur)
                 {
                     if (p[i].remaining_time < cur->process->remaining_time) break;
                     idx++;
@@ -953,10 +961,12 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
         // IO 처리
         if (!is_empty(&waiting)) // waiting 큐에 프로세스가 있으면
         {
-            Process* io_proc = peek_front(&waiting); //waiting 큐 첫번째
+            Process* io_proc = peek_front(&waiting);
 
+            if (io_proc->io_remaining_time > 0)
+                io_proc->io_remaining_time--; // I/O 남은 시간 감소
             // WAITING -> READY
-            if (io_proc->io_remaining_time == 0) // I/O 완료 시
+            if (io_proc->io_remaining_time == 0)
             {
                 pop_front(&waiting);
                 io_proc->current_io_index++;
@@ -974,49 +984,11 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
                 insert(&ready, idx, io_proc);
             }
 
-            if (io_proc->io_remaining_time > 0) io_proc->io_remaining_time--; // I/O 남은 시간 감소
+            
         }
 
-        //  선점 조건 확인
-        if (running != NULL && !is_empty(&ready)) // 실행 중일 때 ready에 더 짧은 프로세스가 있으면
-        {
-            Process* front = peek_front(&ready);
-            if (front->remaining_time < running->remaining_time) // 실행시간 비교(SJF)
-            {
-                running->state = READY;
-
-                // 다시 ready 큐에 삽입(RUNNING -> READY)리스케줄링
-                int idx = 0;
-                Node* cur = ready.head;
-                while (cur)  //탐색
-                {
-                    if (running->remaining_time < cur->process->remaining_time) break;
-                    idx++;
-                    cur = cur->next;
-                }
-                insert(&ready, idx, running);
-
-                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; // 실행 종료 로그 기록
-                running = NULL; // running 프로세스 종료
-                start_time = -1;
-            }
-        }
-
-        //  READY -> RUNNING
-        if (running == NULL && !is_empty(&ready)) // 실행 중인 프로세스가 없고 ready에 있을 때
-        {
-            if (idle_start != -1) // 이전이 idle이면 idle 로그 기록
-            {
-                log[log_index++] = (Running_Log){ 0, idle_start, current_time };  //idle은 pid=0으로 처리
-                idle_start = -1;
-            }
-
-            running = pop_front(&ready); // ready에서 꺼내 실행
-            running->state = RUNNING;
-            start_time = current_time; // 실행 시작 시간 기록
-        }
-
-        if (running != NULL) // 현재 프로세스 실행 중일 때
+        // 실행 중인 프로세스 처리
+        if (running != NULL)
         {
             int executed_time = running->cpu_burst_time - running->remaining_time;
 
@@ -1034,7 +1006,7 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
             }
 
             // RUNNING -> TERMINATED
-            else if (running->remaining_time == 0) // 실행 완료 시
+            else if (running->remaining_time == 0)
             {
                 running->state = TERMINATED;
                 log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; // 로그 기록
@@ -1044,7 +1016,46 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
             }
         }
 
-        //  IDLE 감지
+        // 선점 조건 확인
+        if (running != NULL && !is_empty(&ready)) // 실행 중일 때 ready에 더 짧은 프로세스가 있으면
+        {
+            Process* front = peek_front(&ready);
+            if (front->remaining_time < running->remaining_time)
+            {
+                running->state = READY;
+
+                // 다시 ready 큐에 삽입(RUNNING -> READY)
+                int idx = 0;
+                Node* cur = ready.head;
+                while (cur)
+                {
+                    if (running->remaining_time < cur->process->remaining_time) break;
+                    idx++;
+                    cur = cur->next;
+                }
+                insert(&ready, idx, running);
+
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; // 로그 기록
+                running = NULL;
+                start_time = -1;
+            }
+        }
+
+        // READY -> RUNNING
+        if (running == NULL && !is_empty(&ready)) // 실행중인 프로세스가 없고 ready 큐가 비어있지 않으면
+        {
+            if (idle_start != -1)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; // idle 로그 기록
+                idle_start = -1;
+            }
+
+            running = pop_front(&ready);
+            running->state = RUNNING;
+            start_time = current_time; // 실행 시작 시간 기록
+        }
+
+        // IDLE 감지
         if (running == NULL && is_empty(&ready)) // running도 없고 ready도 없으면 idle
         {
             if (idle_start == -1)
@@ -1061,3 +1072,154 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n) {
     Gantt_chart_display(log, "Preemptive SJF", log_index); // 간트차트 출력
     Evaluate(original, n, log, log_index, "Preemptive SJF"); // 평가 출력
 }
+
+void Schedule_Preemptive_Priority(Process* p, Process* original, int n)
+{
+    Queue ready, waiting; // ready 큐와 waiting 큐 생성 및 초기화
+    init_queue(&ready);
+    init_queue(&waiting);
+
+    Running_Log log[2 * MAX_PROCESS_NUM]; // 간트차트와 평가용 log
+    int log_index = 0;
+    int current_time = 0; // 현재 시간 tick
+    int terminated_count = 0; // 종료된 프로세스 개수
+    Process* running = NULL; // 현재 실행중인 프로세스
+    int start_time = -1;  // log 기록용 (시작시간)
+    int idle_start = -1;  // log 기록용 (idle 시작시간)
+
+    while (terminated_count < n) //모든 프로세스가 끝날 때까지
+    {
+        // NEW -> READY
+        for (int i = 0; i < n; i++) // 현재 시간에 도착한 프로세스 ready 큐에 삽입
+        {
+            if (p[i].arrival_time == current_time)
+            {
+                p[i].state = READY;
+
+                // priority 기준 정렬 삽입
+                int idx = 0;
+                Node* cur = ready.head;
+                while (cur)
+                {
+                    if (p[i].priority < cur->process->priority) break;
+                    idx++;
+                    cur = cur->next;
+                }
+                insert(&ready, idx, &p[i]);
+            }
+        }
+
+        // IO 처리
+        if (!is_empty(&waiting)) // waiting 큐에 프로세스가 있으면
+        {
+            Process* io_proc = peek_front(&waiting);
+
+            // WAITING -> READY
+            if (io_proc->io_remaining_time == 0)
+            {
+                pop_front(&waiting);
+                io_proc->current_io_index++;
+                io_proc->state = READY;
+
+                // priority 기준 정렬 삽입
+                int idx = 0;
+                Node* cur = ready.head;
+                while (cur)
+                {
+                    if (io_proc->priority < cur->process->priority) break;
+                    idx++;
+                    cur = cur->next;
+                }
+                insert(&ready, idx, io_proc);
+            }
+
+            if (io_proc->io_remaining_time > 0)
+                io_proc->io_remaining_time--; // I/O 남은 시간 감소
+        }
+
+        // 실행 중인 프로세스 처리
+        if (running != NULL)
+        {
+            int executed_time = running->cpu_burst_time - running->remaining_time;
+
+            // RUNNING -> WAITING: I/O 요청 도달 시
+            if (running->current_io_index < running->io_count &&
+                executed_time == running->io_request_times[running->current_io_index])
+            {
+                running->io_remaining_time = running->io_burst_times[running->current_io_index];
+                running->state = WAITING;
+                append(&waiting, running);
+
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; // 로그 기록
+                running = NULL;
+                start_time = -1;
+            }
+
+            // RUNNING -> TERMINATED
+            else if (running->remaining_time == 0)
+            {
+                running->state = TERMINATED;
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; // 로그 기록
+                running = NULL;
+                start_time = -1;
+                terminated_count++;
+            }
+        }
+
+        // 선점 조건 확인 (priority 낮을수록 높은 우선순위)
+        if (running != NULL && !is_empty(&ready))
+        {
+            Process* front = peek_front(&ready);
+            if (front->priority < running->priority)
+            {
+                running->state = READY;
+
+                // 다시 ready 큐에 삽입(RUNNING -> READY)
+                int idx = 0;
+                Node* cur = ready.head;
+                while (cur)
+                {
+                    if (running->priority < cur->process->priority) break;
+                    idx++;
+                    cur = cur->next;
+                }
+                insert(&ready, idx, running);
+
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; // 로그 기록
+                running = NULL;
+                start_time = -1;
+            }
+        }
+
+        // READY -> RUNNING
+        if (running == NULL && !is_empty(&ready))
+        {
+            if (idle_start != -1)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; // idle 로그 기록
+                idle_start = -1;
+            }
+
+            running = pop_front(&ready);
+            running->state = RUNNING;
+            start_time = current_time; // 실행 시작 시간 기록
+        }
+
+        // IDLE 감지
+        if (running == NULL && is_empty(&ready))
+        {
+            if (idle_start == -1)
+            {
+                idle_start = current_time; // idle 시작 시간 기록
+            }
+        }
+
+        current_time++; // 1 tick 증가
+        if (running != NULL)
+            running->remaining_time--; // 실행 시간 감소
+    }
+
+    Gantt_chart_display(log, "Preemptive Priority", log_index); // 간트차트 출력
+    Evaluate(original, n, log, log_index, "Preemptive Priority"); // 평가 출력
+}
+
