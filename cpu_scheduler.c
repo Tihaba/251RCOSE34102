@@ -223,7 +223,7 @@ void Create_process(Process *p, int n)
             p[i].io_count =2; //bursttime 이 3이면 최대 2번까지 i/o가 들어갈수있다.
             //p[i].io_count = rand()%2 + 1; //무조건 2번이상(멀티번) 일어나야하면 감점대상(1~2)
         else 
-            p[i].io_count =3; //그외는 (2~3) i/o
+            p[i].io_count = rand()%2 +2; //그외는 (2~3) i/o
 
         p[i].io_request_times = malloc(sizeof(int) * p[i].io_count);
         p[i].io_burst_times = malloc(sizeof(int) * p[i].io_count);
@@ -488,97 +488,105 @@ void Schedule_SJF(Process* p, Process* original, int n) {
     int start_time = -1;  //log 기록용
     int idle_start = -1;  //log 기록용
 
-    while (terminated_count < n) // 모든 프로세스가 끝날 때까지
+    while (terminated_count < n)  //모든 프로세스가 끝날떄까지
     {
-        for (int i = 0; i < n; i++) // 도착한 프로세스 ready 큐에 삽입
-        {
-            if (p[i].arrival_time == current_time)
+        //  NEW  ->  READY
+        for (int i = 0; i < n; i++) // ready 큐에 삽입
+        { 
+            if (p[i].arrival_time == current_time) //도착한 프로세스 삽입
             {
                 p[i].state = READY;
+
                 // remaining_time 기준 정렬 삽입
                 int idx = 0;
-                Node* cur = ready.head; //첫번쨰 노드
-                while (cur) //남은 실행시간기준으로 탐색
-                {
-                    if (p[i].remaining_time < cur->process->remaining_time) break; //cur Node보다 짧으면 break하고 cur node 앞에 삽입
+                Node* cur = ready.head;
+                while (cur) {
+                    if (p[i].remaining_time < cur->process->remaining_time) break;
                     idx++;
-                    cur = cur->next;  //다음 노드로 이동
+                    cur = cur->next;
                 }
                 insert(&ready, idx, &p[i]);
             }
         }
-        //IO처리
-        if (!is_empty(&waiting)) // waiting 큐 처리
-        {
-            Process* io_proc = peek_front(&waiting); //waiting 큐의 첫번쨰 가져옴
-            io_proc->io_remaining_time--;
 
-            if (io_proc->io_remaining_time == 0)  //io가 끝났을떄
+        //IO 처리
+        if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
+        {
+            Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 가져옴
+            io_proc->io_remaining_time--; // i/o burst 감소
+
+            //WAITING -> READY
+            if (io_proc->io_remaining_time == 0)  // i/o 가끝났을떄
             {
                 pop_front(&waiting);
-                io_proc->current_io_index++;  //다음 io로 index증가
+                io_proc->current_io_index++;
                 io_proc->state = READY;
 
+                // remaining_time 기준 정렬 삽입
                 int idx = 0;
-                Node* cur = ready.head; //첫번쨰 노드
-                while (cur)//노드 탐색
-                {
-                    if (io_proc->remaining_time < cur->process->remaining_time) break; //curNode보다 짧을떄 break, curnode앞에 삽입
+                Node* cur = ready.head;
+                while (cur) {
+                    if (io_proc->remaining_time < cur->process->remaining_time) break;
                     idx++;
-                    cur = cur->next; //다음노드
+                    cur = cur->next;
                 }
                 insert(&ready, idx, io_proc);
             }
         }
-        if (running == NULL && !is_empty(&ready)) // ReadyQueue -> Running
+
+        if (running != NULL) //현재 프로세스가 running일때
         {
-            if (idle_start != -1)
+            int executed_time = running->cpu_burst_time - running->remaining_time;
+
+            // I/O 요청 도달(RUNNING -> WAITING)
+            if (running->current_io_index < running->io_count &&
+                executed_time == running->io_request_times[running->current_io_index])
             {
-                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; // idle 로그 기록
-                idle_start = -1;
-            }
-
-            running = pop_front(&ready);
-            running->state = RUNNING;
-        }
-
-        if (running != NULL) // 현재 실행 중인 프로세스 처리
-        {
-            if (start_time == -1) start_time = current_time;
-
-            running->remaining_time--;
-
-            // IO 요청 도달
-            if (running->current_io_index < running->io_count &&       //유효한 io 인덱스인지
-                running->cpu_burst_time - running->remaining_time ==   //io_request_time탐지 (총 burst-remain=실행한시간)
-                running->io_request_times[running->current_io_index])
-            {
-                running->io_remaining_time = running->io_burst_times[running->current_io_index];//i/o remain time set 해서 컨트롤
+                running->io_remaining_time = running->io_burst_times[running->current_io_index];
                 running->state = WAITING;
-                append(&waiting, running); //waiting에 삽입
+                append(&waiting, running);
 
-                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; //기록
-                running = NULL; //runniㅜg 초기화
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time };
+                running = NULL;
                 start_time = -1;
             }
-            else if (running->remaining_time == 0) // 프로세스 종료 시
+            //RUNNING -> TERMINATED
+            else if (running->remaining_time == 0)  //프로세스가 종료되었을때
             {
                 running->state = TERMINATED;
-                log[log_index++] = (Running_Log){ running->pid, start_time, current_time + 1 }; //기록
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time };
                 running = NULL;
                 start_time = -1;
                 terminated_count++;
             }
         }
 
-        if (running == NULL && is_empty(&ready)) // IDLE 감지
+        //  READY -> RUNNING
+        if (running == NULL && !is_empty(&ready)) //실행중인 프로세스가없고, ready큐가 empty가 아닐떄
+        {
+            if (idle_start != -1)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time };  //idle은 pid=0으로 처리
+                idle_start = -1;
+            }
+
+            running = pop_front(&ready);
+            running->state = RUNNING;
+            start_time = current_time;
+        }
+
+        //  IDLE 감지
+        if (running == NULL && is_empty(&ready))
         {
             if (idle_start == -1)
             {
                 idle_start = current_time;
             }
         }
-        current_time++; // 1 tick 증가
+
+        current_time++; //1 tick만큼 증가
+        if (running != NULL)
+            running->remaining_time--; // 실행 시간만큼 남은시간 감소
     }
 
     Gantt_chart_display(log, "SJF", log_index);
