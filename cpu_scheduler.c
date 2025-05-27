@@ -636,10 +636,9 @@ void Schedule_FCFS(Process* p, Process* original, int n, int skip)
         if(running != NULL)
             running->remaining_time--; // 실행 시간만큼 남은시간 감소
     }
-    if(skip==0){
+    if(skip==0)
     Gantt_chart_display(log, "FCFS", log_index);
     Evaluate(original, n, log, log_index, "FCFS",0);
-    }
 }
 
 void Schedule_SJF(Process* p, Process* original, int n, int skip) 
@@ -756,10 +755,9 @@ void Schedule_SJF(Process* p, Process* original, int n, int skip)
         if (running != NULL)
             running->remaining_time--; // 실행 시간만큼 남은시간 감소
     }
-    if(skip==0){
+    if(skip==0)
     Gantt_chart_display(log, "SJF", log_index);
     Evaluate(original, n, log, log_index, "SJF",1);
-    }
 }
 
 void Schedule_Priority(Process* p, Process* original, int n, int skip) 
@@ -878,10 +876,9 @@ void Schedule_Priority(Process* p, Process* original, int n, int skip)
         if (running != NULL)
             running->remaining_time--; // 실행 시간만큼 남은시간 감소
     }
-    if(skip==0){
+    if(skip==0)
     Gantt_chart_display(log, "Priority", log_index);
     Evaluate(original, n, log, log_index, "Priority",2);
-    }
 }
 
 void Schedule_RR(Process* p, Process* original, int n, int skip) 
@@ -1002,10 +999,9 @@ void Schedule_RR(Process* p, Process* original, int n, int skip)
             quantum_counter++; //퀀텀 증가
         }
     }
-    if(skip==0){
+    if(skip==0)
     Gantt_chart_display(log, "RR", log_index);
     Evaluate(original, n, log, log_index, "RR",3);
-    }
 }
 
 void Schedule_Preemptive_SJF(Process* p, Process* original, int n, int skip)
@@ -1154,10 +1150,9 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n, int skip)
         if (running != NULL)
             running->remaining_time--; // 실행 시간 감소
     }
-    if(skip==0){
+    if(skip==0)
     Gantt_chart_display(log, "Preemptive SJF", log_index); // 간트차트 출력
     Evaluate(original, n, log, log_index, "Preemptive SJF",5); // 평가 출력
-    }
 }
 
 void Schedule_Preemptive_Priority(Process* p, Process* original, int n, int skip)
@@ -1305,9 +1300,8 @@ void Schedule_Preemptive_Priority(Process* p, Process* original, int n, int skip
         if (running != NULL)
             running->remaining_time--; // 실행 시간 감소
     }
-    if(skip==0){
+    if(skip==0)
     Gantt_chart_display(log, "Preemptive Priority", log_index); // 간트차트 출력
     Evaluate(original, n, log, log_index, "Preemptive Priority",4); // 평가 출력
-    }
 }
 
