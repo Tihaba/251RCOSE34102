@@ -55,24 +55,55 @@ void Schedule_FCFS(Process *p, Process *original, int n); //FCFS
 void Schedule_SJF(Process *p, Process *original, int n);
 void Schedule_Priority(Process *p, Process *original, int n);
 void Print_process_info(Process *p, int n);
+void Scheduling(Process *original, int select, int n);
+void Schedule_RR(Process *p, Process *original, int n);
 
 
 
 int main(void)
 {
     Process original_process[MAX_PROCESS_NUM]={0}; //초기화
-    Process copied_process[MAX_PROCESS_NUM]={0};
-    int n=5;
-    
 
+    int n=5;
     Create_process(original_process, n); // 프로세스 생성
-    Print_process_info(original_process,n);
-    copy(original_process, copied_process, n);
-    Schedule_FCFS(copied_process,original_process,n); 
-    copy(original_process, copied_process, n);
-    Schedule_SJF(copied_process,original_process,n);
-    /*copy(original_process,copied_process,10);
-    Schedule_Priority(copied_process,original_process,10);*/
+ 
+    
+    while(1)
+    {
+        int select;
+        printf("\n\n<<select option>>\n"
+               "1. FCFS\n2. Non-Preemptive SJF\n"
+               "3. Non-Preemptive Priority\n4. RoundRobin\n"
+               "5. Preemptive Priority\n6. Preemptive SJF\n"
+               "7. Report (Evaluate All)\n8. Exit\n"
+               );
+        char input[100]; // 문자열 입력용 버퍼
+
+        start:
+            printf(">> ");
+            if (fgets(input, sizeof(input), stdin) == NULL) {
+                printf("Input error.\n");
+                goto start;
+            }
+
+            // 숫자인지 확인 (입력값이 숫자가 아닐 경우 select에 안 들어감)
+            if (sscanf(input, "%d", &select) != 1) {
+                printf("Invalid input. Please enter a number between 1 and 8.\n");
+                goto start;
+            }
+
+            if (select > 0 && select < 8) {
+                Scheduling(original_process, select, n);
+            }
+            else if (select == 8) {
+                printf("EXIT CPU_SCHEDULE_SIMULATER.\n");
+                break;
+            }
+            else {
+                printf("Invalid input. Please enter a number between 1 and 8.\n");
+                goto start;
+            }
+    }
     return 0;
 
 }
@@ -146,6 +177,37 @@ void append(Queue* q, Process* p) {  //맨뒤에 삽입
     }
 
     prevNode->next = new_node;
+}
+
+void Scheduling(Process *original, int select, int n)
+{
+    Process copied_process[MAX_PROCESS_NUM]={0};
+    switch(select)
+    {
+        case 1:
+            Print_process_info(original,n);
+            copy(original, copied_process, n);
+            Schedule_FCFS(copied_process,original,n);
+            break;
+        case 2:
+            Print_process_info(original,n);
+            copy(original, copied_process, n);
+            Schedule_SJF(copied_process,original,n);
+            break;
+        case 3:
+            Print_process_info(original,n);
+            copy(original, copied_process, n);
+            Schedule_Priority(copied_process,original,n);
+            break;
+        case 4:
+            Print_process_info(original,n);
+            copy(original, copied_process, n);
+            Schedule_RR(copied_process,original,n);
+            break;
+    }
+    printf("Press Any Key....");
+    getchar();
+
 }
 
 void Print_process_info(Process *p, int n) {
@@ -711,4 +773,126 @@ void Schedule_Priority(Process* p, Process* original, int n) {
 
     Gantt_chart_display(log, "Priority", log_index);
     Evaluate(original, n, log, log_index, "Priority");
+}
+
+void Schedule_RR(Process* p, Process* original, int n) {
+    Queue ready, waiting; // ready 큐와 waiting 큐 생성 및 초기화
+    init_queue(&ready);
+    init_queue(&waiting);
+
+    Running_Log log[2 * MAX_PROCESS_NUM]; // 간트차트와 평가용 log
+    int log_index = 0;
+    int current_time = 0;
+    int terminated_count = 0; // 종료된 프로세스 개수
+    Process* running = NULL; // 현재 실행중인 프로세스
+    int start_time = -1;  //log 기록용
+    int idle_start = -1;  //log 기록용
+    int quantum_counter = 0; //RR용 퀀텀 카운터
+
+    const int TIME_QUANTUM = 3; // 타임 퀀텀 설정
+
+    while (terminated_count < n)  //모든 프로세스가 끝날떄까지
+    {
+        //  NEW  ->  READY
+        for (int i = 0; i < n; i++) // ready 큐에 삽입(NEW -> READY)
+        {
+            if (p[i].arrival_time == current_time) //도착한 프로세스 삽입
+            {
+                p[i].state = READY;
+                append(&ready, &p[i]);
+            }
+        }
+
+        //IO 처리
+        if (!is_empty(&waiting)) //wainting큐에 프로세스가 있으면 진행
+        {
+            Process* io_proc = peek_front(&waiting);  //waiting큐 첫번째 가져옴
+
+            //WAITING -> READY
+            if (io_proc->io_remaining_time == 0)  // i/o 가끝났을떄
+            {
+                pop_front(&waiting);
+                io_proc->current_io_index++; //다음 i/o가 되도록index 증가
+                io_proc->state = READY;
+                append(&ready, io_proc);
+            }
+
+            if(io_proc->io_remaining_time>0) io_proc->io_remaining_time--; // I/O 감소
+        }
+
+        if (running != NULL) //현재 프로세스가 running일때
+        {
+            int executed_time = running->cpu_burst_time - running->remaining_time;
+
+            // I/O 요청 도달(RUNNING -> WAITING)
+            if (running->current_io_index < running->io_count &&
+                executed_time == running->io_request_times[running->current_io_index])
+            {
+                running->io_remaining_time = running->io_burst_times[running->current_io_index]; // io remain set 하고  컨트롤
+                running->state = WAITING;
+                append(&waiting, running); //프로세스 waiting 큐에 삽입
+
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time }; //로그기록
+                running = NULL;  //running 비움
+                start_time = -1;  //다음 번 프로세스를 위해 초기화
+                quantum_counter = 0;  //퀀텀 리셋
+            }
+
+            //RUNNING -> TERMINATED
+            else if (running->remaining_time == 0)  //프로세스가 종료되었을때
+            {
+                running->state = TERMINATED;
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time };
+                running = NULL;
+                start_time = -1;
+                terminated_count++;
+                quantum_counter = 0; //퀀텀 리셋
+            }
+
+            //RUNNING -> READY (퀀텀 만료)
+            else if (quantum_counter == TIME_QUANTUM)
+            {
+                running->state = READY;
+                append(&ready, running);
+                log[log_index++] = (Running_Log){ running->pid, start_time, current_time };
+                running = NULL;
+                start_time = -1;
+                quantum_counter = 0;
+            }
+        }
+
+        //  READY -> RUNNING
+        if (running == NULL && !is_empty(&ready)) //실행중인 프로세스가없고, ready 큐가 비어있지 않을 때
+        {
+            if (idle_start != -1) //idle 로그 기록 (-1이 아니면 이전이 idle)
+            {
+                log[log_index++] = (Running_Log){ 0, idle_start, current_time }; //idle은 pid=0으로 처리
+                idle_start = -1; //idle이 끝났으므로 초기화
+            }
+
+            running = pop_front(&ready); //빼서 Runing으로 돌림
+            running->state = RUNNING;
+            start_time = current_time; //시작시간 기록
+            quantum_counter = 0; //퀀텀 초기화
+        }
+
+        //  IDLE 감지
+        if (running == NULL && is_empty(&ready)) //runinning도 없고 프로세스도 없을떄
+        {
+            if (idle_start == -1)
+            {
+                idle_start = current_time; //idle 시작 시간 기록
+            }
+        }
+
+        current_time++; //1 tick만큼 증가
+        if (running != NULL)
+        {
+            running->remaining_time--; // 실행 시간만큼 남은시간 감소
+            quantum_counter++; //퀀텀 증가
+        }
+    }
+
+    Gantt_chart_display(log, "RR", log_index);
+    Evaluate(original, n, log, log_index, "RR");
 }
