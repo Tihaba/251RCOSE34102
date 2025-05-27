@@ -62,7 +62,7 @@ void append(Queue* q, Process* p);
 void copy(Process *src, Process *dest, int n); //프로세스 리스트 복사
 void Gantt_chart_display(Running_Log *log, char *name, int n); //간트차트 출력 
 void Create_process(Process *p, int n); //프로세스 생성
-void Evaluate(Process *p, int n, Running_Log *log, int index, char *name, int result_index); //평가함수
+void Evaluate(Process *p, int n, Running_Log *log, int index, char *name, int result_index,int skip); //평가함수
 void Schedule_FCFS(Process *p, Process *original, int n, int skip); //FCFS
 void Schedule_SJF(Process *p, Process *original, int n, int skip);
 void Schedule_Priority(Process *p, Process *original, int n, int skip);
@@ -442,7 +442,7 @@ void Report_Evaluation() {
 
     int best_wait = 0, best_turn = 0, best_util = 0;
 
-    for (int i = 1; i < 6; i++) { // 6개 알고리즘
+    for (int i = 0; i < 6; i++) { // 6개 알고리즘
         printf("%-25s | %-20.2f | %-20.2f | %-10.2f\n",
             results[i].name,
             results[i].avg_waiting,
@@ -465,7 +465,7 @@ void Report_Evaluation() {
 }
 
 
-void Evaluate(Process *p, int n, Running_Log *log, int index, char *name, int result_index)
+void Evaluate(Process *p, int n, Running_Log *log, int index, char *name, int result_index,int skip)
 {
     int *waiting_times=malloc(sizeof(int)*(n+1));  //프로세스별 waiting time
     int *turnaround_times=malloc(sizeof(int)*(n+1));  //프로세스별 turnaround time
@@ -505,6 +505,10 @@ void Evaluate(Process *p, int n, Running_Log *log, int index, char *name, int re
         total_waiting += waiting; //전체 waiting time
         total_turnaround += turnaround; // 전체 turnaround time
     }
+    float avg_waiting = (float)total_waiting / n;              
+    float avg_turnaround = (float)total_turnaround / n;       
+    float utilization = 100.0f * total_runtime / end_time;      // CPU 사용률 계산
+    if(skip == 1) goto shortcut;
 
     // 표 출력qn
     printf("\nEVALUATION \n");
@@ -523,15 +527,13 @@ void Evaluate(Process *p, int n, Running_Log *log, int index, char *name, int re
         printf(" %3d", turnaround_times[i]);
     printf("\n");
 
-    float avg_waiting = (float)total_waiting / n;              
-    float avg_turnaround = (float)total_turnaround / n;       
-    float utilization = 100.0f * total_runtime / end_time;      // CPU 사용률 계산
+    
 
     // 평균 출력
     printf("\nAverage Waiting Time   : %.2f\n", avg_waiting);
     printf("Average Turnaround Time: %.2f\n", avg_turnaround);
 
-
+    shortcut:
         strcpy(results[result_index].name, name);
         results[result_index].avg_waiting = avg_waiting;
         results[result_index].avg_turnaround = avg_turnaround;
@@ -638,7 +640,7 @@ void Schedule_FCFS(Process* p, Process* original, int n, int skip)
     }
     if(skip==0)
     Gantt_chart_display(log, "FCFS", log_index);
-    Evaluate(original, n, log, log_index, "FCFS",0);
+    Evaluate(original, n, log, log_index, "FCFS",0,skip);
 }
 
 void Schedule_SJF(Process* p, Process* original, int n, int skip) 
@@ -757,7 +759,7 @@ void Schedule_SJF(Process* p, Process* original, int n, int skip)
     }
     if(skip==0)
     Gantt_chart_display(log, "SJF", log_index);
-    Evaluate(original, n, log, log_index, "SJF",1);
+    Evaluate(original, n, log, log_index, "SJF",1,skip);
 }
 
 void Schedule_Priority(Process* p, Process* original, int n, int skip) 
@@ -878,7 +880,7 @@ void Schedule_Priority(Process* p, Process* original, int n, int skip)
     }
     if(skip==0)
     Gantt_chart_display(log, "Priority", log_index);
-    Evaluate(original, n, log, log_index, "Priority",2);
+    Evaluate(original, n, log, log_index, "Priority",2,skip);
 }
 
 void Schedule_RR(Process* p, Process* original, int n, int skip) 
@@ -1001,7 +1003,7 @@ void Schedule_RR(Process* p, Process* original, int n, int skip)
     }
     if(skip==0)
     Gantt_chart_display(log, "RR", log_index);
-    Evaluate(original, n, log, log_index, "RR",3);
+    Evaluate(original, n, log, log_index, "RR",3,skip);
 }
 
 void Schedule_Preemptive_SJF(Process* p, Process* original, int n, int skip)
@@ -1152,7 +1154,7 @@ void Schedule_Preemptive_SJF(Process* p, Process* original, int n, int skip)
     }
     if(skip==0)
     Gantt_chart_display(log, "Preemptive SJF", log_index); // 간트차트 출력
-    Evaluate(original, n, log, log_index, "Preemptive SJF",5); // 평가 출력
+    Evaluate(original, n, log, log_index, "Preemptive SJF",5,skip); // 평가 출력
 }
 
 void Schedule_Preemptive_Priority(Process* p, Process* original, int n, int skip)
@@ -1302,6 +1304,6 @@ void Schedule_Preemptive_Priority(Process* p, Process* original, int n, int skip
     }
     if(skip==0)
     Gantt_chart_display(log, "Preemptive Priority", log_index); // 간트차트 출력
-    Evaluate(original, n, log, log_index, "Preemptive Priority",4); // 평가 출력
+    Evaluate(original, n, log, log_index, "Preemptive Priority",4,skip); // 평가 출력
 }
 
