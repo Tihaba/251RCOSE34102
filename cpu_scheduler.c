@@ -78,7 +78,7 @@ int main(void)
 {
     Process original_process[MAX_PROCESS_NUM]={0}; //초기화
 
-    int n=5;
+    int n=4;
     Create_process(original_process, n); // 프로세스 생성
  
     
@@ -1198,6 +1198,8 @@ void Schedule_Preemptive_Priority(Process* p, Process* original, int n, int skip
         {
             Process* io_proc = peek_front(&waiting);
 
+            if (io_proc->io_remaining_time > 0)
+                io_proc->io_remaining_time--; // I/O 남은 시간 감소
             // WAITING -> READY
             if (io_proc->io_remaining_time == 0)
             {
@@ -1217,8 +1219,7 @@ void Schedule_Preemptive_Priority(Process* p, Process* original, int n, int skip
                 insert(&ready, idx, io_proc);
             }
 
-            if (io_proc->io_remaining_time > 0)
-                io_proc->io_remaining_time--; // I/O 남은 시간 감소
+        
         }
 
         // 실행 중인 프로세스 처리
